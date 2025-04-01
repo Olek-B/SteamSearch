@@ -19,8 +19,12 @@ import kotlinx.coroutines.flow.map
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.common.util.Log
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+
 
 // At top level of the file (outside any class)
 val Context.dataStore by preferencesDataStore(name = "saved_games")
@@ -122,10 +126,19 @@ object RetrofitClient {
     private const val BASE_URL = "https://store.steampowered.com/"
 
     private val gson = GsonBuilder().create()
+    val loggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY // Options: NONE, BASIC, HEADERS, BODY
+    }
+
+    val client = OkHttpClient.Builder()
+        .addInterceptor(loggingInterceptor)
+        .build()
+
 
     val steamApiService: SteamApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(SteamApiService::class.java)

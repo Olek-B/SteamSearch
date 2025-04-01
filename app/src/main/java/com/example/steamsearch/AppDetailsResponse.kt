@@ -13,7 +13,8 @@ data class AppData(
     @SerializedName("name") val name: String?,
     @SerializedName("steam_appid") val appId: Int?,
     @SerializedName("short_description") val shortDescription: String?,
-    @SerializedName("price_overview") val priceOverview: PriceOverview?
+    @SerializedName("price_overview") val priceOverview: PriceOverview?,
+    @SerializedName("header_image") val headerImage	: PriceOverview?,
     // Add other fields as needed
 )
 

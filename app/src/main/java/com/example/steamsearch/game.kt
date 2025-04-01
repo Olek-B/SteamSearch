@@ -105,15 +105,15 @@ fun GameCard(gameID: Int, size: Dp = 400.dp) {
 
     Box(
         modifier = Modifier
-            .width(size)
-            .height(size * 1.4f)
+            .width(size* 1.4f)
+            .height(size )
             .padding(8.dp)
             .shadow(8.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
     ) {
         // Background Image with Gradient Overlay
         Box(modifier = Modifier.fillMaxSize()) {
-            GameHeroImage(gameID = gameID)
+            GameHeroImage(gameID)
 
             // Gradient overlay
             Box(
