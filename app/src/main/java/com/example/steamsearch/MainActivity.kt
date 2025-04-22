@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.steamsearch.ui.theme.SteamSearchTheme
 import androidx.activity.viewModels
 import androidx.lifecycle.ViewModelProvider
+import com.example.steamsearch.ui.SearchScreen
 
 class MainActivity : ComponentActivity() {
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -44,5 +45,7 @@ fun NavigationGraph(navController: NavHostController, modifier: Modifier = Modif
             TopGameCardColumn() }
         composable("Bookmarks") {
             SavedGameCardColumn() }
+        composable("search") {
+            SearchScreen() }
     }
 }

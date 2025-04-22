@@ -2,28 +2,24 @@ package com.example.steamsearch
 
 import android.annotation.SuppressLint
 import android.content.Context
-import androidx.compose.animation.AnimatedContentScope
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.map
-
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-
 import androidx.lifecycle.ViewModelProvider
-import androidx.media3.common.util.Log
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import android.util.Log
 
 
 // At top level of the file (outside any class)
@@ -57,19 +53,11 @@ class SteamViewModel(@SuppressLint("StaticFieldLeak") private val context: Conte
         }
     }
 
-    // Helper function to check if a game is saved
-    suspend fun isGameSaved(appId: Int): Boolean {
-        return savedGameIds.first().contains(appId.toString())
-    }
-
-    // ... rest of your existing ViewModel code ...
-
-    // Store MutableStateFlows for each app
+    // App details state management
     private val _appDetailsMap = mutableMapOf<String, MutableStateFlow<AppData?>>()
     private val _loadingStates = mutableMapOf<String, MutableStateFlow<Boolean>>()
     private val _errorStates = mutableMapOf<String, MutableStateFlow<String?>>()
 
-    // Public accessors that return StateFlow (immutable)
     fun getAppDetailsFlow(appId: String): StateFlow<AppData?> {
         return _appDetailsMap.getOrPut(appId) { MutableStateFlow(null) }.asStateFlow()
     }
@@ -82,10 +70,8 @@ class SteamViewModel(@SuppressLint("StaticFieldLeak") private val context: Conte
         return _errorStates.getOrPut(appId) { MutableStateFlow(null) }.asStateFlow()
     }
 
-
     fun fetchAppDetails(appId: String) {
         viewModelScope.launch {
-            // Get the mutable state flows for this app
             val loadingFlow = _loadingStates.getOrPut(appId) { MutableStateFlow(false) }
             val errorFlow = _errorStates.getOrPut(appId) { MutableStateFlow(null) }
             val detailsFlow = _appDetailsMap.getOrPut(appId) { MutableStateFlow(null) }
@@ -108,10 +94,39 @@ class SteamViewModel(@SuppressLint("StaticFieldLeak") private val context: Conte
             }
         }
     }
+
+
+    private val _searchResults = MutableStateFlow<List<Int>>(emptyList())
+    val searchResults: StateFlow<List<Int>> = _searchResults.asStateFlow()
+
+    private val _searchLoading = MutableStateFlow(false)
+    val searchLoading: StateFlow<Boolean> = _searchLoading.asStateFlow()
+
+    private val _searchError = MutableStateFlow<String?>(null)
+    val searchError: StateFlow<String?> = _searchError.asStateFlow()
+
+    fun searchApps(term: String, cc: String = "us", language: String = "en") {
+        viewModelScope.launch {
+            _searchLoading.value = true
+            _searchError.value = null
+
+            try {
+                val response = RetrofitClient.steamApiService.searchApps(term, cc, language)
+                Log.i("help", response.toString());
+                val results = response.items.map { it.id } // Map the list of SearchItems to a list of IDs
+                _searchResults.value = results
+            } catch (e: Exception) {
+                _searchError.value = "Search failed: ${e.message}"
+                Log.i("help", "czemu?");
+                _searchResults.value = emptyList()
+            } finally {
+                _searchLoading.value = false
+            }
+        }
+    }
+
 }
 
-
-// Add this class in the same file as your SteamViewModel
 class SteamViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SteamViewModel::class.java)) {
@@ -127,13 +142,12 @@ object RetrofitClient {
 
     private val gson = GsonBuilder().create()
     val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY // Options: NONE, BASIC, HEADERS, BODY
+        level = HttpLoggingInterceptor.Level.BODY
     }
 
     val client = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
         .build()
-
 
     val steamApiService: SteamApiService by lazy {
         Retrofit.Builder()

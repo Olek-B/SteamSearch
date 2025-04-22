@@ -1,15 +1,45 @@
 import android.annotation.SuppressLint
 import android.content.Context
-import androidx.compose.animation.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import android.util.Log
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.paddingFromBaseline
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,36 +81,32 @@ fun GameCardColumn(
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = modifier
-            .verticalScroll(rememberScrollState())
             .fillMaxWidth()
             .padding(8.dp)
             .paddingFromBaseline(bottom = 150.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        finalGameIds.forEach { gameId ->
-            key(gameId) {  // Important for recomposition
-                GameCard(gameID = gameId)
-            }
+        items(finalGameIds) { gameId ->
+            GameCard(gameID = gameId)
         }
     }
 }
 
 @SuppressLint("RememberReturnType")
 @Composable
- public fun rememberSteamViewModel(context: Context = LocalContext.current): SteamViewModel {
+public fun rememberSteamViewModel(context: Context = LocalContext.current): SteamViewModel {
     val factory = remember { SteamViewModelFactory(context) }
     return viewModel(factory = factory)
 }
+
 @SuppressLint("RememberReturnType")
 @Composable
 public fun rememberTopSteamViewModel(context: Context = LocalContext.current): TopGamesViewModel {
     val factory = remember { TopGamesViewModelFactory(context) }
     return viewModel(factory = factory)
 }
-
-
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,23 +123,26 @@ fun GameCard(gameID: Int, size: Dp = 400.dp) {
         viewModel.fetchAppDetails(appId)
     }
 
-    // Rest of your UI
-
-    LaunchedEffect(gameID) {
-        viewModel.fetchAppDetails(gameID.toString())
-    }
-
     Box(
         modifier = Modifier
-            .width(size* 1.4f)
-            .height(size )
+            .width(size * 1.4f)
+            .height(size)
             .padding(8.dp)
             .shadow(8.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
     ) {
         // Background Image with Gradient Overlay
         Box(modifier = Modifier.fillMaxSize()) {
-            GameHeroImage(gameID)
+            when {
+                isLoading -> LoadingIndicator()
+                error != null -> ErrorMessage(error)  // Add this case
+                appDetails != null -> {
+                    appDetails!!.headerImage?.let { GameHeroImage(gameID, it) }
+                    Log.i("Lama", appDetails.toString())
+                }
+                else -> Log.i("aaaaaaa", "pomidor")  // This should now rarely trigger
+            }
+
 
             // Gradient overlay
             Box(
@@ -140,18 +169,19 @@ fun GameCard(gameID: Int, size: Dp = 400.dp) {
         ) {
             when {
                 isLoading -> LoadingIndicator()
-                appDetails != null -> GameDetailsCard(
-                    appDetails = appDetails!!,
-                    viewModel = viewModel
-                )
+                error != null -> ErrorMessage(error)  // Add this case
+                appDetails != null -> {
+                    GameDetailsCard(appDetails!!,viewModel)
+                    Log.i("Lama", appDetails.toString())
+                }
+                else -> Log.i("aaaaaaa", "pomidor")  // This should now rarely trigger
             }
         }
     }
 }
-@Composable
-private fun GameHeroImage(gameID: Int) {
-    val imageUrl = "https://cdn.cloudflare.steamstatic.com/steam/apps/$gameID/hero_capsule.jpg"
 
+@Composable
+private fun GameHeroImage(gameID: Int, imageUrl: String) {
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(imageUrl)
@@ -203,6 +233,14 @@ private fun GameDetailsCard(appDetails: AppData, viewModel: SteamViewModel) {
     val savedGameIds by viewModel.savedGameIds.collectAsState(initial = emptySet())
     val isSaved = savedGameIds.contains(appDetails.appId.toString())
 
+    val error by viewModel.getErrorFlow(appDetails.appId.toString()).collectAsState()
+    if (error != null) {
+        Log.e("GameCard", "Error state for ${appDetails.appId}: $error")
+    }
+    Log.i("GamedetailsCard", "Error state for ${appDetails}:")
+
+
+
     AnimatedVisibility(
         visible = true,
         enter = fadeIn() + slideInVertically { it / 2 },
@@ -224,23 +262,24 @@ private fun GameDetailsCard(appDetails: AppData, viewModel: SteamViewModel) {
                         color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f))
+                        modifier = Modifier.weight(1f)
+                    )
 
-                                Button(
-                                onClick = {
-                                    if (isSaved) {
-                                        appDetails.appId?.let { viewModel.removeSavedGame(it) }
-                                    } else {
-                                        viewModel.saveGame(appDetails)
-                                    }
-                                }
-                                ) {
-                            Icon(
-                                imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = if (isSaved) "Remove from saved" else "Save game",
-                                tint = if (isSaved) Color.Red else Color.White
-                            )
+                    Button(
+                        onClick = {
+                            if (isSaved) {
+                                appDetails.appId?.let { viewModel.removeSavedGame(it) }
+                            } else {
+                                viewModel.saveGame(appDetails)
+                            }
                         }
+                    ) {
+                        Icon(
+                            imageVector = if (isSaved) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isSaved) "Remove from saved" else "Save game",
+                            tint = if (isSaved) Color.Red else Color.White
+                        )
+                    }
                 }
                 // ... rest of your card content ...
 
@@ -288,7 +327,7 @@ fun SavedGameCardColumn(viewModel: SteamViewModel = rememberSteamViewModel()) {
             savedGameIds.mapNotNull { it.toIntOrNull() }
         }
     }
-    GameCardColumn(finalGameIds,viewModel=viewModel)
+    GameCardColumn(finalGameIds, viewModel = viewModel)
 }
 
 
